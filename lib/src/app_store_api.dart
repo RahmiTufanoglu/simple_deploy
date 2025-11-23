@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+import 'package:path/path.dart' as path;
 
 class AppStoreApiClient {
   final String issuerId;
@@ -21,7 +22,42 @@ class AppStoreApiClient {
 
   /// Generates a JWT token for authentication.
   String _generateToken() {
-    final privateKey = File(privateKeyPath).readAsStringSync();
+    // Resolve private key path
+    String resolvedPath = privateKeyPath;
+    
+    // If it's not an absolute path, try different common locations
+    if (!path.isAbsolute(privateKeyPath)) {
+      final currentDir = Directory.current.path;
+      final possiblePaths = [
+        path.join(currentDir, privateKeyPath),
+        path.join(currentDir, 'private_keys', privateKeyPath),
+        path.join(Platform.environment['HOME'] ?? '', 'private_keys', privateKeyPath),
+        path.join(Platform.environment['HOME'] ?? '', '.private_keys', privateKeyPath),
+        path.join(Platform.environment['HOME'] ?? '', '.appstoreconnect', 'private_keys', privateKeyPath),
+      ];
+      
+      for (final testPath in possiblePaths) {
+        if (File(testPath).existsSync()) {
+          resolvedPath = testPath;
+          break;
+        }
+      }
+    }
+    
+    // Validate that the private key file exists
+    final keyFile = File(resolvedPath);
+    if (!keyFile.existsSync()) {
+      throw FileSystemException('Private key file not found: $resolvedPath\n'
+          'Searched locations:\n'
+          '- $privateKeyPath\n'
+          '- ${path.join(Directory.current.path, privateKeyPath)}\n'
+          '- ${path.join(Directory.current.path, 'private_keys', privateKeyPath)}\n'
+          '- ${path.join(Platform.environment['HOME'] ?? '', 'private_keys', privateKeyPath)}\n'
+          '- ${path.join(Platform.environment['HOME'] ?? '', '.private_keys', privateKeyPath)}\n'
+          '- ${path.join(Platform.environment['HOME'] ?? '', '.appstoreconnect', 'private_keys', privateKeyPath)}');
+    }
+    
+    final privateKey = keyFile.readAsStringSync();
     final jwt = JWT(
       {
         'iss': issuerId,

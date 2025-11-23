@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import 'package:googleapis/androidpublisher/v3.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:simple_deploy/src/loading.dart';
@@ -60,6 +61,23 @@ Future<void> deploy(
     print('No credentialsFile supplied');
     exit(1);
   }
+  
+  // Resolve the credentials file path relative to working directory if it's a relative path
+  String credentialsPath = credentialsFile0;
+  if (!path.isAbsolute(credentialsPath)) {
+    credentialsPath = path.join(workingDirectory, credentialsPath);
+  }
+  
+  // Validate that the credentials file exists and is actually a file
+  final credentialsFile = File(credentialsPath);
+  if (!credentialsFile.existsSync()) {
+    print('❌ Credentials file not found: $credentialsPath');
+    exit(1);
+  }
+  if (credentialsFile.statSync().type != FileSystemEntityType.file) {
+    print('❌ Credentials path is not a file: $credentialsPath');
+    exit(1);
+  }
   final packageName = config?['packageName'];
   if (packageName == null) {
     print('No packageName supplied');
@@ -73,7 +91,6 @@ Future<void> deploy(
   DateTime startTime = DateTime.now();
 
   startLoading('Get service account');
-  File credentialsFile = File(credentialsFile0);
   final credentials = ServiceAccountCredentials.fromJson(
       json.decode(credentialsFile.readAsStringSync()));
   final httpClient = await clientViaServiceAccount(
